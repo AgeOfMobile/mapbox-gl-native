@@ -372,7 +372,11 @@ NSArray *MGLSubexpressionsWithJSONObjects(NSArray *objects) {
             NSExpression *operand = [NSExpression mgl_expressionWithJSONObject:argumentObjects.firstObject];
             argumentObjects = [argumentObjects subarrayWithRange:NSMakeRange(1, argumentObjects.count - 1)];
             NSArray *subexpressions = MGLSubexpressionsWithJSONObjects(argumentObjects);
-            return [NSExpression expressionForFunction:operand selectorName:@"mgl_numberWithFallbackValues:" arguments:subexpressions];
+            if (subexpressions.count == 0) {
+                return [NSExpression expressionForFunction:operand selectorName:@"mgl_number" arguments:@[]];
+            } else {
+                return [NSExpression expressionForFunction:operand selectorName:@"mgl_numberWithFallbackValues:" arguments:subexpressions];
+            }
         } else if ([op isEqualToString:@"to-string"]) {
             NSExpression *operand = [NSExpression mgl_expressionWithJSONObject:argumentObjects.firstObject];
             return [NSExpression expressionForFunction:operand selectorName:@"stringValue" arguments:@[]];
@@ -647,7 +651,8 @@ NSArray *MGLSubexpressionsWithJSONObjects(NSArray *objects) {
                 return [@[@"concat", self.operand.mgl_jsonExpressionObject] arrayByAddingObjectsFromArray:arguments];
             } else if ([function isEqualToString:@"boolValue"]) {
                 return @[@"to-boolean", self.operand.mgl_jsonExpressionObject];
-            } else if ([function isEqualToString:@"mgl_numberWithFallbackValues:"] ||
+            } else if ([function isEqualToString:@"mgl_number"] ||
+                       [function isEqualToString:@"mgl_numberWithFallbackValues:"] ||
                        [function isEqualToString:@"decimalValue"] ||
                        [function isEqualToString:@"floatValue"] ||
                        [function isEqualToString:@"doubleValue"]) {
