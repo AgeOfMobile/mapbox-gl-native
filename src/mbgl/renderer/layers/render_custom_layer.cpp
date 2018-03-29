@@ -11,17 +11,16 @@ namespace mbgl {
 using namespace style;
 
 RenderCustomLayer::RenderCustomLayer(Immutable<style::CustomLayer::Impl> _impl)
-    : RenderLayer(LayerType::Custom, _impl) {
+    : RenderLayer(LayerType::Custom, _impl), host(_impl->host) {
+    host->initialize();
 }
 
 RenderCustomLayer::~RenderCustomLayer() {
     assert(BackendScope::exists());
-    if (initialized) {
-        if (contextDestroyed && impl().contextLostFn ) {
-            impl().contextLostFn(impl().context);
-        } else if (!contextDestroyed && impl().deinitializeFn) {
-            impl().deinitializeFn(impl().context);
-        }
+    if (contextDestroyed) {
+        host->contextLost();
+    } else if (!contextDestroyed) {
+        host->deinitialize();
     }
 }
 
@@ -43,15 +42,13 @@ std::unique_ptr<Bucket> RenderCustomLayer::createBucket(const BucketParameters&,
 }
 
 void RenderCustomLayer::render(PaintParameters& paintParameters, RenderSource*) {
-    if (context != impl().context || !initialized) {
+    if (host != impl().host) {
         //If the context changed, deinitialize the previous one before initializing the new one.
-        if (context && !contextDestroyed && impl().deinitializeFn) {
-            impl().deinitializeFn(context);
+        if (host && !contextDestroyed) {
+            host->deinitialize();
         }
-        context = impl().context;
-        assert(impl().initializeFn);
-        impl().initializeFn(impl().context);
-        initialized = true;
+        host = impl().host;
+        host->initialize();
     }
 
     gl::Context& glContext = paintParameters.context;
@@ -74,8 +71,7 @@ void RenderCustomLayer::render(PaintParameters& paintParameters, RenderSource*) 
     parameters.pitch = state.getPitch();
     parameters.fieldOfView = state.getFieldOfView();
 
-    assert(impl().renderFn);
-    impl().renderFn(context, parameters);
+    host->render(parameters);
 
     // Reset the view back to our original one, just in case the CustomLayer changed
     // the viewport or Framebuffer.
