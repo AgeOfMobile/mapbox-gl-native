@@ -42,7 +42,7 @@ import java.util.Map;
 import timber.log.Timber;
 
 // Class that wraps the native methods for convenience
-final class NativeMapView {
+public final class NativeMapView {
 
   // Flag to indicating destroy was called
   private boolean destroyed = false;
@@ -51,7 +51,7 @@ final class NativeMapView {
   private long nativePtr = 0;
 
   // Used for callbacks
-  private MapView mapView;
+  private Callbacks mapView;
 
   //Hold a reference to prevent it from being GC'd as long as it's used on the native side
   private final FileSource fileSource;
@@ -73,11 +73,10 @@ final class NativeMapView {
   // Constructors
   //
 
-  public NativeMapView(final MapView mapView, MapRenderer mapRenderer) {
+  public NativeMapView(final Context context, final Callbacks mapView, MapRenderer mapRenderer) {
     this.mapRenderer = mapRenderer;
     this.mapView = mapView;
 
-    Context context = mapView.getContext();
     fileSource = FileSource.getInstance(context);
     pixelRatio = context.getResources().getDisplayMetrics().density;
 
@@ -867,7 +866,7 @@ final class NativeMapView {
       return;
     }
 
-    Bitmap viewContent = BitmapUtils.createBitmapFromView(mapView);
+    Bitmap viewContent = mapView.getViewContent();
     if (snapshotReadyCallback != null && mapContent != null && viewContent != null) {
       snapshotReadyCallback.onSnapshotReady(BitmapUtils.mergeBitmap(mapContent, viewContent));
     }
@@ -1122,7 +1121,6 @@ final class NativeMapView {
 
         });
       }
-
     });
   }
 
@@ -1175,5 +1173,15 @@ final class NativeMapView {
         nativeMapView.nativeAddImages(images.toArray(new Image[images.size()]));
       }
     }
+  }
+
+  public interface Callbacks {
+    int getWidth();
+    int getHeight();
+    void addOnMapChangedListener(@NonNull MapView.OnMapChangedListener listener);
+    void removeOnMapChangedListener(@NonNull MapView.OnMapChangedListener listener);
+    void onMapChange(int rawChange);
+    boolean post(Runnable runnable);
+    Bitmap getViewContent();
   }
 }

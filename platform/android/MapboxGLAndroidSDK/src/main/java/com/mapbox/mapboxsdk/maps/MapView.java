@@ -1,6 +1,7 @@
 package com.mapbox.mapboxsdk.maps;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.PointF;
 import android.opengl.GLSurfaceView;
 import android.os.Build;
@@ -40,6 +41,7 @@ import com.mapbox.mapboxsdk.maps.renderer.textureview.TextureViewMapRenderer;
 import com.mapbox.mapboxsdk.maps.widgets.CompassView;
 import com.mapbox.mapboxsdk.net.ConnectivityReceiver;
 import com.mapbox.mapboxsdk.storage.FileSource;
+import com.mapbox.mapboxsdk.utils.BitmapUtils;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -71,7 +73,7 @@ import static com.mapbox.mapboxsdk.maps.widgets.CompassView.TIME_WAIT_IDLE;
  * <strong>Warning:</strong> Please note that you are responsible for getting permission to use the map data,
  * and for ensuring your use adheres to the relevant terms of use.
  */
-public class MapView extends FrameLayout {
+public class MapView extends FrameLayout implements NativeMapView.Callbacks {
 
   private final MapCallback mapCallback = new MapCallback();
   private MapboxMap mapboxMap;
@@ -307,7 +309,7 @@ public class MapView extends FrameLayout {
       addView(glSurfaceView, 0);
     }
 
-    nativeMapView = new NativeMapView(this, mapRenderer);
+    nativeMapView = new NativeMapView(this.getContext(),this, mapRenderer);
     nativeMapView.resizeView(getMeasuredWidth(), getMeasuredHeight());
   }
 
@@ -569,7 +571,7 @@ public class MapView extends FrameLayout {
   // Map events
   //
 
-  void onMapChange(int rawChange) {
+  public void onMapChange(int rawChange) {
     for (MapView.OnMapChangedListener onMapChangedListener : onMapChangedListeners) {
       try {
         onMapChangedListener.onMapChanged(rawChange);
@@ -577,6 +579,11 @@ public class MapView extends FrameLayout {
         Timber.e(err, "Exception in MapView.OnMapChangedListener");
       }
     }
+  }
+
+  @Override
+  public Bitmap getViewContent() {
+    return BitmapUtils.createBitmapFromView(this);
   }
 
   /**
