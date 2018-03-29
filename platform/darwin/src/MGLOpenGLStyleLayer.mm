@@ -1,4 +1,4 @@
-#import "MGLOpenGLStyleLayer.h"
+ #import "MGLOpenGLStyleLayer.h"
 
 #import "MGLMapView_Private.h"
 #import "MGLStyle_Private.h"
@@ -7,50 +7,47 @@
 #include <mbgl/style/layers/custom_layer.hpp>
 #include <mbgl/math/wrap.hpp>
 
-/**
- Runs the preparation handler block contained in the given context, which is
- implicitly an instance of `MGLOpenGLStyleLayer`.
+class MGLOpenGLLayerHost : public mbgl::style::CustomLayerHost {
+public:
+    MGLOpenGLLayerHost(MGLOpenGLStyleLayer *styleLayer) {
+        context = (__bridge void*)styleLayer;
+    }
+    ~MGLOpenGLLayerHost () {
+        context = nullptr;
+    }
 
- @param context An `MGLOpenGLStyleLayer` instance that was provided as context
-    when creating an OpenGL style layer.
- */
-void MGLPrepareCustomStyleLayer(void *context) {
-    MGLOpenGLStyleLayer *layer = (__bridge MGLOpenGLStyleLayer *)context;
-    (__bridge_retained void *)layer;
-    [layer didMoveToMapView:layer.style.mapView];
-}
+    void initialize() {
+        assert(context);
+        MGLOpenGLStyleLayer *layer = (__bridge MGLOpenGLStyleLayer *)context;
+        CFBridgingRetain(layer);
+        [layer didMoveToMapView:layer.style.mapView];
+    }
 
-/**
- Runs the drawing handler block contained in the given context, which is
- implicitly an instance of `MGLOpenGLStyleLayer`.
+    void render(const mbgl::style::CustomLayerRenderParameters &params) {
+        assert(context);
+        MGLOpenGLStyleLayer *layer = (__bridge MGLOpenGLStyleLayer *)context;
+        MGLStyleLayerDrawingContext drawingContext = {
+            .size = CGSizeMake(params.width, params.height),
+            .centerCoordinate = CLLocationCoordinate2DMake(params.latitude, params.longitude),
+            .zoomLevel = params.zoom,
+            .direction = mbgl::util::wrap(params.bearing, 0., 360.),
+            .pitch = static_cast<CGFloat>(params.pitch),
+            .fieldOfView = static_cast<CGFloat>(params.fieldOfView),
+        };
+        [layer drawInMapView:layer.style.mapView withContext:drawingContext];
+    }
 
- @param context An `MGLOpenGLStyleLayer` instance that was provided as context
-    when creating an OpenGL style layer.
- */
-void MGLDrawCustomStyleLayer(void *context, const mbgl::style::CustomLayerRenderParameters &params) {
-    MGLOpenGLStyleLayer *layer = (__bridge MGLOpenGLStyleLayer *)context;
-    MGLStyleLayerDrawingContext drawingContext = {
-        .size = CGSizeMake(params.width, params.height),
-        .centerCoordinate = CLLocationCoordinate2DMake(params.latitude, params.longitude),
-        .zoomLevel = params.zoom,
-        .direction = mbgl::util::wrap(params.bearing, 0., 360.),
-        .pitch = static_cast<CGFloat>(params.pitch),
-        .fieldOfView = static_cast<CGFloat>(params.fieldOfView),
-    };
-    [layer drawInMapView:layer.style.mapView withContext:drawingContext];
-}
+    void contextLost() {}
 
-/**
- Runs the completion handler block contained in the given context, which is
- implicitly an instance of `MGLOpenGLStyleLayer`.
+    void deinitialize() {
+        assert(context);
+        MGLOpenGLStyleLayer *layer = CFBridgingRelease(context);
+        [layer willMoveFromMapView:layer.style.mapView];
+    }
+private:
+    void *context = nullptr;
 
- @param context An `MGLOpenGLStyleLayer` instance that was provided as context
-    when creating an OpenGL style layer.
- */
-void MGLFinishCustomStyleLayer(void *context) {
-    MGLOpenGLStyleLayer *layer = (__bridge_transfer MGLOpenGLStyleLayer *)context;
-    [layer willMoveFromMapView:layer.style.mapView];
-}
+};
 
 /**
  An `MGLOpenGLStyleLayer` is a style layer that is rendered by OpenGL code that
@@ -73,6 +70,7 @@ void MGLFinishCustomStyleLayer(void *context) {
 @interface MGLOpenGLStyleLayer ()
 
 @property (nonatomic, readonly) mbgl::style::CustomLayer *rawLayer;
+@property (nonatomic) MGLOpenGLLayerHost *layerHost;
 
 /**
  The style currently containing the layer.
@@ -98,11 +96,9 @@ void MGLFinishCustomStyleLayer(void *context) {
  @return An initialized OpenGL style layer.
  */
 - (instancetype)initWithIdentifier:(NSString *)identifier {
+    self.layerHost = new MGLOpenGLLayerHost(self);
     auto layer = std::make_unique<mbgl::style::CustomLayer>(identifier.UTF8String,
-                                                            MGLPrepareCustomStyleLayer,
-                                                            MGLDrawCustomStyleLayer,
-                                                            MGLFinishCustomStyleLayer,
-                                                            (__bridge void *) self);
+                                                            self.layerHost);
     return self = [super initWithPendingLayer:std::move(layer)];
 }
 
